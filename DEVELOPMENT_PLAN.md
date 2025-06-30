@@ -1,0 +1,200 @@
+# Zenoh C++ RPC 开发计划
+
+## 项目概述
+
+本项目旨在将Python版本的zenohrpc移植到C++，确保功能和逻辑完全一致。
+
+### 项目结构对比
+
+**Python版本路径**: `/home/vision/users/flb/internship/zenohrpc`
+**C++版本路径**: `/home/vision/users/flb/internship/zenoh-cpp-rpc`
+**Zenoh官方源码**: `/home/vision/users/flb/internship/zenoh-cpp`
+
+## 当前状态分析
+
+### Python版本特点
+
+1. **Client构造函数**：
+   - 参数：`session`, `qkey`, `encoding`, `timeout`
+   - 支持灵活的会话管理
+   - 支持编码格式选择
+
+2. **编码支持**：
+   - JSON和msgpack两种编码格式
+   - 动态编码器选择机制
+
+3. **错误处理**：
+   - 完整的错误代码系统
+   - 支持`code`和`data`字段
+   - 详细的异常分类
+
+4. **Session管理**：
+   - 支持模式配置（client/peer/router）
+   - 支持连接端点配置
+   - 灵活的会话生命周期管理
+
+5. **参数处理**：
+   - 支持位置参数和关键字参数
+   - 灵活的参数组合方式
+
+### C++版本当前状态
+
+1. **Client构造函数**：
+   - 参数：`key_expr`和可选的`session`
+   - 相对简单的构造方式
+
+2. **编码支持**：
+   - 主要支持JSON
+   - msgpack支持不完整
+
+3. **错误处理**：
+   - 基础异常类
+   - 缺少`code`和`data`字段
+   - 错误信息相对简单
+
+4. **Session管理**：
+   - 基础的会话管理
+   - 配置选项有限
+
+5. **参数处理**：
+   - 基础的JSON参数处理
+
+## 分步实现计划
+
+### 第一步：完善错误处理系统 ⭐ **当前优先级**
+
+**目标**：让C++版本的错误处理与Python版本一致
+
+**需要改进的文件**：
+- `include/zenoh_rpc/errors.hpp`
+- `src/jsonrpc_client.cpp`
+- `src/jsonrpc_server.cpp`
+
+**具体任务**：
+1. 为所有异常类添加`code`和`data`成员变量
+2. 修改异常构造函数以支持错误代码和数据
+3. 更新客户端错误处理逻辑，正确设置错误代码
+4. 更新服务器错误响应生成逻辑
+5. 确保错误代码与Python版本一致：
+   - ParseError: -32700
+   - InvalidRequestError: -32600
+   - MethodNotFoundError: -32601
+   - InvalidParamsError: -32602
+   - InternalError: -32603
+   - ServerError: -32000
+   - ConnectionError: -32001
+   - TimeoutError: -32002
+
+**验证方法**：
+- 编写测试用例验证错误代码正确性
+- 与Python版本进行互操作测试
+
+### 第二步：改进Client构造函数
+
+**目标**：支持更灵活的客户端配置
+
+**需要改进的文件**：
+- `include/zenoh_rpc/jsonrpc_client.hpp`
+- `src/jsonrpc_client.cpp`
+
+**具体任务**：
+1. 添加`encoding`参数支持
+2. 添加`timeout`参数支持
+3. 改进Session配置选项
+4. 保持向后兼容性
+
+### 第三步：完善编码支持
+
+**目标**：完整支持JSON和msgpack编码
+
+**需要改进的文件**：
+- `include/zenoh_rpc/jsonrpc_proto.hpp`
+- `src/jsonrpc_proto.cpp`
+
+**具体任务**：
+1. 实现完整的msgpack支持
+2. 添加编码格式选择机制
+3. 更新协议处理函数
+4. 添加编码性能优化
+
+### 第四步：改进参数处理
+
+**目标**：支持更灵活的参数传递方式
+
+**需要改进的文件**：
+- `include/zenoh_rpc/jsonrpc_proto.hpp`
+- `src/jsonrpc_proto.cpp`
+
+**具体任务**：
+1. 支持位置参数和关键字参数
+2. 改进`make_request`函数
+3. 添加参数验证机制
+4. 支持可变参数模板
+
+### 第五步：完善Session管理
+
+**目标**：支持更灵活的会话配置
+
+**需要改进的文件**：
+- `include/zenoh_rpc/session.hpp`
+- `src/session.cpp`
+
+**具体任务**：
+1. 支持模式配置（client/peer/router）
+2. 支持连接端点配置
+3. 改进会话生命周期管理
+4. 添加会话状态监控
+
+## 开发规范
+
+### 代码风格
+- 遵循现有的C++代码风格
+- 使用现代C++特性（C++17）
+- 保持与Python版本的API一致性
+
+### 测试策略
+- 每个步骤完成后进行单元测试
+- 与Python版本进行互操作测试
+- 性能基准测试
+
+### 文档更新
+- 更新README.md
+- 更新API文档
+- 添加使用示例
+
+## 进度跟踪
+
+### 已完成
+- [x] 项目结构分析
+- [x] Python版本功能调研
+- [x] 开发计划制定
+
+### 进行中
+- [ ] 第一步：完善错误处理系统
+
+### 待完成
+- [ ] 第二步：改进Client构造函数
+- [ ] 第三步：完善编码支持
+- [ ] 第四步：改进参数处理
+- [ ] 第五步：完善Session管理
+
+## 注意事项
+
+1. **兼容性**：确保与现有代码的向后兼容性
+2. **性能**：C++版本应该有更好的性能表现
+3. **内存管理**：注意内存泄漏和资源管理
+4. **异常安全**：确保异常安全性
+5. **线程安全**：考虑多线程使用场景
+
+## 联系信息
+
+如有问题，请参考：
+- Python版本源码：`/home/vision/users/flb/internship/zenohrpc`
+- Zenoh官方文档和示例
+- 当前实现进度和问题记录
+
+---
+
+**最后更新时间**：2024年（请根据实际时间更新）
+**当前版本**：v0.1.0-dev
+**负责人**：开发团队

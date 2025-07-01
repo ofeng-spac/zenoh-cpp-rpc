@@ -865,5 +865,189 @@ public:
 
 ---
 
+## 10. 模板递归调用问题与解决方案
+
+### 10.1 问题背景
+
+在开发JSON-RPC参数处理功能时，遇到了模板实例化深度超过最大限制的编译错误。这是C++模板编程中的常见问题，特别是在使用可变参数模板时。
+
+### 10.2 错误现象
+
+#### 编译错误信息
+```
+fatal error: template instantiation depth exceeds maximum of 900
+(use -ftemplate-depth= to increase the maximum)
+```
+
+#### 问题代码
+```cpp
+// 错误的实现 - 导致无限递归
+template<typename... Args>
+json make_request_args(const std::string& method, Args... args) {
+    std::string id = gen_uuid();
+    return make_request_args(method, id, args...);  // 错误：递归调用自身
+}
+```
+
+### 10.3 问题分析
+
+#### 递归调用链
+1. **函数重载匹配**: 编译器尝试匹配最佳重载
+2. **模板实例化**: 每次递归都创建新的模板实例
+3. **无限循环**: 没有递归终止条件，导致无限展开
+4. **深度限制**: 达到编译器的模板实例化深度限制（默认900层）
+
+#### 根本原因
+- **函数签名冲突**: 两个`make_request_args`重载版本参数匹配模糊
+- **递归逻辑错误**: 在重载版本中错误地调用了自身
+- **缺少终止条件**: 没有明确的递归终止机制
+
+### 10.4 解决方案
+
+#### 修复前的错误代码
+```cpp
+template<typename... Args>
+json make_request_args(const std::string& method, Args... args) {
+    std::string id = gen_uuid();  // 生成UUID
+    return make_request_args(method, id, args...);  // 错误：递归调用
+}
+```
+
+#### 修复后的正确代码
+```cpp
+template<typename... Args>
+json make_request_args(const std::string& method, Args... args) {
+    std::string id = gen_uuid();  // 生成UUID
+    json params = json::array();
+    (params.push_back(std::forward<Args>(args)), ...);  // 折叠表达式
+    return make_request(method, params, id);  // 直接调用基础函数
+}
+```
+
+### 10.5 关键修复点
+
+#### 1. 消除递归调用
+```cpp
+// 错误：递归调用同名函数
+return make_request_args(method, id, args...);
+
+// 正确：直接构建参数并调用基础函数
+json params = json::array();
+(params.push_back(std::forward<Args>(args)), ...);
+return make_request(method, params, id);
+```
+
+#### 2. 使用折叠表达式
+- **一元右折叠**: `(expression, ...)`
+- **参数包展开**: 将可变参数逐个处理
+- **完美转发**: 保持参数的值类别
+
+#### 3. 明确调用链
+```
+make_request_args(method, args...) 
+    ↓ 生成UUID
+    ↓ 构建JSON数组
+    ↓ 调用make_request(method, params, id)
+        ↓ 构建完整JSON-RPC请求
+```
+
+### 10.6 模板递归的最佳实践
+
+#### 1. 避免无意的递归
+```cpp
+// 危险：可能导致递归
+template<typename T>
+void func(T&& t) {
+    func(std::forward<T>(t));  // 可能递归调用自身
+}
+
+// 安全：明确调用目标
+template<typename T>
+void func(T&& t) {
+    other_func(std::forward<T>(t));  // 调用其他函数
+}
+```
+
+#### 2. 使用SFINAE或概念约束
+```cpp
+// 使用enable_if避免模糊匹配
+template<typename... Args>
+typename std::enable_if_t<sizeof...(Args) > 0, json>
+make_request_args(const std::string& method, Args... args) {
+    // 实现
+}
+```
+
+#### 3. 明确函数重载优先级
+```cpp
+// 基础版本
+json make_request_args(const std::string& method, const std::string& id);
+
+// 可变参数版本 - 明确不同的参数模式
+template<typename... Args>
+json make_request_args(const std::string& method, Args... args) {
+    // 确保不会调用自身
+}
+```
+
+### 10.7 调试技巧
+
+#### 1. 编译器诊断
+```bash
+# 增加模板深度限制以获得更多信息
+g++ -ftemplate-depth=1500 -c file.cpp
+
+# 启用详细模板实例化信息
+g++ -ftemplate-backtrace-limit=0 -c file.cpp
+```
+
+#### 2. 代码审查要点
+- 检查模板函数是否有递归调用
+- 确认函数重载的参数匹配规则
+- 验证递归终止条件
+- 使用静态断言验证模板参数
+
+#### 3. 单元测试验证
+```cpp
+// 测试模板函数的正确性
+void test_template_recursion() {
+    // 测试基本功能
+    auto result1 = make_request_args("test", 1, 2, 3);
+    assert(result1["params"].size() == 3);
+    
+    // 测试边界情况
+    auto result2 = make_request_args("test");
+    assert(result2["params"].size() == 0);
+}
+```
+
+### 10.8 性能影响
+
+#### 编译时性能
+- **模板实例化**: 每个不同的参数组合都会生成新的实例
+- **编译时间**: 复杂模板会显著增加编译时间
+- **二进制大小**: 多个模板实例会增加可执行文件大小
+
+#### 运行时性能
+- **零开销抽象**: 正确的模板使用不会产生运行时开销
+- **内联优化**: 编译器可以完全内联模板函数
+- **类型安全**: 编译时类型检查，无运行时类型转换开销
+
+### 10.9 相关知识点
+
+#### C++模板特性
+- **SFINAE** (Substitution Failure Is Not An Error)
+- **模板特化** (Template Specialization)
+- **概念约束** (Concepts - C++20)
+- **折叠表达式** (Fold Expressions - C++17)
+
+#### 编译器行为
+- **模板实例化深度限制**
+- **重载决议规则**
+- **参数推导机制**
+- **编译时优化**
+
+---
+
 *最后更新: 2024-01-XX*
 *项目版本: v1.0*

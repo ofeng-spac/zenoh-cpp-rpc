@@ -2,7 +2,7 @@
 
 A C++ implementation of JSON-RPC over Zenoh, compatible with the Python zenohrpc library.
 
-## Version 1.1.0 Features
+## Version 1.2.1 Features
 
 - ✅ **JSON-RPC 2.0 protocol support** with complete error handling
 - ✅ **Built on top of zenoh-cpp** with modern C++17 features
@@ -152,6 +152,12 @@ This project includes comprehensive learning documentation:
   - Technical implementation details
 
 ## Version History
+
+### v1.2.1 (2024-01)
+- ✅ 修复测试文件权限模式问题
+- ✅ 完善项目结构和文件组织
+- ✅ 优化构建系统和测试流程
+- ✅ 提升代码质量和稳定性
 
 ### v1.1.0 (2024-01)
 - ✅ Enhanced error handling with standard JSON-RPC codes

@@ -50,7 +50,7 @@ json make_request(const std::string& method, const json& params = json::object()
  * @brief 使用位置参数创建 JSON-RPC 请求
  * @tparam Args 参数类型包
  * @param method 要调用的方法名
- * @param id 请求ID
+ * @param id 请求ID（如果为空则自动生成）
  * @param args 位置参数列表
  * @return 格式化的 JSON-RPC 请求对象
  * 
@@ -63,6 +63,60 @@ json make_request_args(const std::string& method, const std::string& id, Args&&.
     (params.push_back(std::forward<Args>(args)), ...);
     return make_request(method, params, id);
 }
+
+/**
+ * @brief 使用位置参数创建 JSON-RPC 请求（自动生成ID）
+ * @tparam Args 参数类型包
+ * @param method 要调用的方法名
+ * @param args 位置参数列表
+ * @return 格式化的 JSON-RPC 请求对象
+ * 
+ * 便利函数，自动生成 UUID 作为请求ID。
+ * 参数将被打包成 JSON 数组。
+ */
+template<typename... Args>
+json make_request_args(const std::string& method, Args&&... args) {
+    json params = json::array();
+    (params.push_back(std::forward<Args>(args)), ...);
+    return make_request(method, params, "");
+}
+
+/**
+ * @brief 使用初始化列表创建位置参数的 JSON-RPC 请求
+ * @param method 要调用的方法名
+ * @param args 参数初始化列表
+ * @param id 请求ID（如果为空则自动生成）
+ * @return 格式化的 JSON-RPC 请求对象
+ * 
+ * 使用初始化列表语法创建位置参数请求。
+ * 例如：make_request_list("method", {1, "hello", true})
+ */
+json make_request_list(const std::string& method, const std::initializer_list<json>& args, const std::string& id = "");
+
+/**
+ * @brief 验证 JSON-RPC 请求的有效性
+ * @param request 要验证的请求对象
+ * @return 如果请求有效则返回 true
+ * 
+ * 验证请求是否符合 JSON-RPC 2.0 规范：
+ * - 必须包含 "jsonrpc": "2.0"
+ * - 必须包含 "method" 字段
+ * - 必须包含 "id" 字段
+ * - "params" 字段可选，但如果存在必须是对象或数组
+ */
+bool validate_request(const json& request);
+
+/**
+ * @brief 验证 JSON-RPC 响应的有效性
+ * @param response 要验证的响应对象
+ * @return 如果响应有效则返回 true
+ * 
+ * 验证响应是否符合 JSON-RPC 2.0 规范：
+ * - 必须包含 "jsonrpc": "2.0"
+ * - 必须包含 "id" 字段
+ * - 必须包含 "result" 或 "error" 字段之一（但不能同时包含）
+ */
+bool validate_response(const json& response);
 
 /**
  * @brief 使用关键字参数创建 JSON-RPC 请求
@@ -161,5 +215,26 @@ std::string encode_json(const json& data);
  * 如果解析失败，会抛出 ParseError 异常。
  */
 json decode_json(const std::string& data);
+
+/**
+ * @brief 将 JSON 对象编码为 MessagePack 字符串
+ * @param data 要编码的 JSON 对象
+ * @return 编码后的 MessagePack 字符串
+ * 
+ * 将 JSON 对象序列化为 MessagePack 二进制格式，然后转换为字符串。
+ * MessagePack 是一种高效的二进制序列化格式。
+ */
+std::string encode_msgpack(const json& data);
+
+/**
+ * @brief 将 MessagePack 字符串解码为 JSON 对象
+ * @param data 要解码的 MessagePack 字符串
+ * @return 解码后的 JSON 对象
+ * @throws ParseError 当 MessagePack 解析失败时
+ * 
+ * 将 MessagePack 字符串反序列化为 JSON 对象。
+ * 如果解析失败，会抛出 ParseError 异常。
+ */
+json decode_msgpack(const std::string& data);
 
 } // namespace zenoh_rpc

@@ -9,24 +9,50 @@ using json = nlohmann::json;
 /**
  * @brief 构造函数（自动创建会话）
  * @param key_expr Zenoh 键表达式，用于标识远程服务
+ * @param encoding 编码格式，支持 "json" 和 "msgpack"
+ * @param timeout 默认超时时间（毫秒）
  * 
  * 创建新的 Zenoh 会话并初始化查询器。
  * 适用于独立使用客户端的场景。
  */
-Client::Client(const std::string& key_expr) 
-    : session_(std::make_unique<Session>()), querier_(session_->declare_querier(key_expr)) {
+Client::Client(const std::string& key_expr, const std::string& encoding, std::chrono::milliseconds timeout) 
+    : key_expr_(key_expr), 
+      session_(nullptr), 
+      owns_session_(true),
+      owned_session_(std::make_unique<Session>()),
+      encoding_(encoding),
+      default_timeout_(timeout),
+      querier_(owned_session_->declare_querier(key_expr)) {
+    session_ = owned_session_.get();
+    
+    // 验证编码格式
+    if (encoding_ != "json" && encoding_ != "msgpack") {
+        throw std::invalid_argument("Unsupported encoding: " + encoding_ + ". Supported: json, msgpack");
+    }
 }
 
 /**
  * @brief 构造函数（使用现有会话）
  * @param key_expr Zenoh 键表达式，用于标识远程服务
  * @param session 现有的 Zenoh 会话引用
+ * @param encoding 编码格式，支持 "json" 和 "msgpack"
+ * @param timeout 默认超时时间（毫秒）
  * 
  * 使用提供的会话初始化查询器。
  * 适用于需要共享会话的场景。
  */
-Client::Client(const std::string& key_expr, Session& session) 
-    : session_(&session), querier_(session.declare_querier(key_expr)) {
+Client::Client(const std::string& key_expr, Session& session, const std::string& encoding, std::chrono::milliseconds timeout) 
+    : key_expr_(key_expr),
+      session_(&session), 
+      owns_session_(false),
+      encoding_(encoding),
+      default_timeout_(timeout),
+      querier_(session.declare_querier(key_expr)) {
+    
+    // 验证编码格式
+    if (encoding_ != "json" && encoding_ != "msgpack") {
+        throw std::invalid_argument("Unsupported encoding: " + encoding_ + ". Supported: json, msgpack");
+    }
 }
 
 /**
@@ -59,18 +85,29 @@ Client::~Client() = default;
  * 5. 解析和验证响应
  * 6. 处理错误或返回结果
  */
-json Client::call(const std::string& method, const json& params, std::chrono::milliseconds timeout) {
+json Client::call(const std::string& method, const json& params, std::optional<std::chrono::milliseconds> timeout) {
+    // 使用提供的超时时间或默认超时时间
+    auto actual_timeout = timeout.value_or(default_timeout_);
     // 生成唯一的请求ID
     std::string id = gen_uuid();
     
     // 创建 JSON-RPC 请求
     json request = make_request(method, params, id);
-    std::string request_str = encode_json(request);
+    std::string request_str;
+    
+    // 根据编码格式选择编码函数
+    if (encoding_ == "json") {
+        request_str = encode_json(request);
+    } else if (encoding_ == "msgpack") {
+        request_str = encode_msgpack(request);
+    } else {
+        throw std::invalid_argument("Unsupported encoding: " + encoding_);
+    }
     
     // 发送 Zenoh 查询
     zenoh::Querier::GetOptions options;
     options.payload = request_str;
-    options.timeout_ms = static_cast<uint64_t>(timeout.count());
+    options.timeout_ms = static_cast<uint64_t>(actual_timeout.count());
     
     auto replies = querier_.get("", zenoh::channels::FifoChannel(16), std::move(options));
     
@@ -90,8 +127,15 @@ json Client::call(const std::string& method, const json& params, std::chrono::mi
     const auto& sample = reply.get_ok();
     std::string response_str = sample.get_payload().as_string();
     
-    // 解析 JSON-RPC 响应
-    json response = decode_json(response_str);
+    // 根据编码格式解析响应
+    json response;
+    if (encoding_ == "json") {
+        response = decode_json(response_str);
+    } else if (encoding_ == "msgpack") {
+        response = decode_msgpack(response_str);
+    } else {
+        throw std::invalid_argument("Unsupported encoding: " + encoding_);
+    }
     
     // 验证响应格式
     if (!response.contains("jsonrpc") || response["jsonrpc"] != "2.0" ||

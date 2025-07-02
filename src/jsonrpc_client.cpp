@@ -22,7 +22,35 @@ Client::Client(const std::string& key_expr, const std::string& encoding, std::ch
       owned_session_(std::make_unique<Session>()),
       encoding_(encoding),
       default_timeout_(timeout),
-      querier_(owned_session_->declare_querier(key_expr)) {
+      querier_(owned_session_->declare_querier(key_expr, default_timeout_.count())) {
+    session_ = owned_session_.get();
+    
+    // 验证编码格式
+    if (encoding_ != "json" && encoding_ != "msgpack") {
+        throw std::invalid_argument("Unsupported encoding: " + encoding_ + ". Supported: json, msgpack");
+    }
+}
+
+/**
+ * @brief 构造函数（自动创建会话，指定模式和连接）
+ * @param key_expr Zenoh 键表达式，用于标识远程服务
+ * @param mode 会话模式（client/peer/router）
+ * @param connections 连接端点列表
+ * @param encoding 编码格式，支持 "json" 和 "msgpack"
+ * @param timeout 默认超时时间（毫秒）
+ * 
+ * 使用指定的模式和连接端点创建新的 Zenoh 会话并初始化查询器。
+ * 适用于需要特定网络配置的场景。
+ */
+Client::Client(const std::string& key_expr, SessionMode mode, const std::vector<std::string>& connections, 
+               const std::string& encoding, std::chrono::milliseconds timeout) 
+    : key_expr_(key_expr), 
+      session_(nullptr), 
+      owns_session_(true),
+      owned_session_(std::make_unique<Session>(mode, connections)),
+      encoding_(encoding),
+      default_timeout_(timeout),
+      querier_(owned_session_->declare_querier(key_expr, default_timeout_.count())) {
     session_ = owned_session_.get();
     
     // 验证编码格式
@@ -47,7 +75,7 @@ Client::Client(const std::string& key_expr, Session& session, const std::string&
       owns_session_(false),
       encoding_(encoding),
       default_timeout_(timeout),
-      querier_(session.declare_querier(key_expr)) {
+      querier_(session.declare_querier(key_expr, default_timeout_.count())) {
     
     // 验证编码格式
     if (encoding_ != "json" && encoding_ != "msgpack") {
@@ -55,12 +83,7 @@ Client::Client(const std::string& key_expr, Session& session, const std::string&
     }
 }
 
-/**
- * @brief 析构函数
- * 
- * 自动清理资源。如果客户端拥有会话，会自动释放。
- */
-Client::~Client() = default;
+
 
 /**
  * @brief 调用远程 RPC 方法
@@ -107,7 +130,6 @@ json Client::call(const std::string& method, const json& params, std::optional<s
     // 发送 Zenoh 查询
     zenoh::Querier::GetOptions options;
     options.payload = request_str;
-    options.timeout_ms = static_cast<uint64_t>(actual_timeout.count());
     
     auto replies = querier_.get("", zenoh::channels::FifoChannel(16), std::move(options));
     

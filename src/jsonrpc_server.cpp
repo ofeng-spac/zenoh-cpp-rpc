@@ -129,4 +129,20 @@ void run_server(const std::string& key_expr, DispatcherBase& dispatcher) {
     run_server(key_expr, dispatcher, session);
 }
 
+/**
+ * @brief 运行 RPC 服务器（自动创建会话，指定模式和连接）
+ * @param key_expr Zenoh 键表达式，用于标识服务
+ * @param dispatcher 方法分发器引用
+ * @param mode 会话模式（client/peer/router）
+ * @param connections 连接端点列表
+ * 
+ * 便利函数，使用指定的模式和连接端点创建新的 Zenoh 会话并启动服务器。
+ * 适用于需要特定网络配置的服务器场景。
+ */
+void run_server(const std::string& key_expr, DispatcherBase& dispatcher, 
+                SessionMode mode, const std::vector<std::string>& connections) {
+    Session session(mode, connections);
+    run_server(key_expr, dispatcher, session);
+}
+
 } // namespace zenoh_rpc

@@ -46,6 +46,23 @@ public:
                    std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
     
     /**
+     * @brief 构造函数（自动创建会话，指定模式和连接）
+     * @param key_expr Zenoh 键表达式，用于标识远程服务
+     * @param mode 会话模式（client/peer/router）
+     * @param connections 连接端点列表
+     * @param encoding 编码格式，支持 "json" 和 "msgpack"（默认为 "json"）
+     * @param timeout 默认超时时间（毫秒，默认为5000ms）
+     * 
+     * 创建一个新的客户端实例，使用指定的模式和连接端点创建 Zenoh 会话。
+     * 客户端将拥有并管理这个会话的生命周期。
+     */
+    explicit Client(const std::string& key_expr,
+                   SessionMode mode,
+                   const std::vector<std::string>& connections = {},
+                   const std::string& encoding = "json",
+                   std::chrono::milliseconds timeout = std::chrono::milliseconds(5000));
+    
+    /**
      * @brief 构造函数（使用现有会话）
      * @param key_expr Zenoh 键表达式，用于标识远程服务
      * @param session 现有的 Zenoh 会话引用

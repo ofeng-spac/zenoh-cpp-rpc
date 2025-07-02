@@ -8,7 +8,10 @@ namespace zenoh_rpc {
  * 使用默认配置创建 Zenoh 会话。
  * 会话将使用 Zenoh 的默认网络配置进行初始化。
  */
-Session::Session() : session_(zenoh::open(zenoh::Config())) {
+Session::Session() : session_(zenoh::open(zenoh::Config())), 
+                     mode_(SessionMode::PEER), 
+                     active_(true) {
+    // 使用默认配置创建 Zenoh 会话，默认为 PEER 模式
 }
 
 /**
@@ -18,7 +21,43 @@ Session::Session() : session_(zenoh::open(zenoh::Config())) {
  * 使用指定的配置创建 Zenoh 会话。
  * 允许用户自定义网络参数、路由器地址等配置。
  */
-Session::Session(const zenoh::Config& config) : session_(zenoh::open(config)) {
+Session::Session(const zenoh::Config& config) : session_(zenoh::open(config)), 
+                                                mode_(SessionMode::PEER), 
+                                                active_(true) {
+    // 使用指定配置创建 Zenoh 会话，默认为 PEER 模式
+}
+
+Session::Session(SessionMode mode, const std::vector<std::string>& connections) 
+    : session_(zenoh::open(create_config(mode, connections))), 
+      mode_(mode), 
+      connections_(connections), 
+      active_(true) {
+    // 使用指定模式和连接端点创建 Zenoh 会话
+}
+
+Session::~Session() {
+    if (active_) {
+        close();
+    }
+}
+
+void Session::close() {
+    if (active_) {
+        session_.close();
+        active_ = false;
+    }
+}
+
+bool Session::is_active() const {
+    return active_;
+}
+
+SessionMode Session::get_mode() const {
+    return mode_;
+}
+
+const std::vector<std::string>& Session::get_connections() const {
+    return connections_;
 }
 
 /**
@@ -55,8 +94,55 @@ zenoh::Queryable<void> Session::declare_queryable(const std::string& key_expr,
  * 创建一个查询器，用于向指定键表达式发送查询请求。
  * 主要用于 RPC 客户端向服务器发送方法调用请求。
  */
-zenoh::Querier Session::declare_querier(const std::string& key_expr) {
-    return session_.declare_querier(key_expr);
+zenoh::Querier Session::declare_querier(const std::string& key_expr, uint64_t timeout_ms) {
+    zenoh::Session::QuerierOptions options;
+    options.timeout_ms = timeout_ms;
+    return session_.declare_querier(key_expr, std::move(options));
+}
+
+zenoh::Publisher Session::declare_publisher(const std::string& key_expr) {
+    return session_.declare_publisher(key_expr);
+}
+
+zenoh::Subscriber<void> Session::declare_subscriber(const std::string& key_expr,
+                                                    std::function<void(const zenoh::Sample&)> callback) {
+    return session_.declare_subscriber(key_expr, std::move(callback));
+}
+
+std::string Session::mode_to_string(SessionMode mode) {
+    switch (mode) {
+        case SessionMode::CLIENT:
+            return "client";
+        case SessionMode::PEER:
+            return "peer";
+        case SessionMode::ROUTER:
+            return "router";
+        default:
+            return "peer"; // 默认返回 peer
+    }
+}
+
+zenoh::Config Session::create_config(SessionMode mode, const std::vector<std::string>& connections) {
+    zenoh::Config config;
+    
+    // 设置会话模式
+    std::string mode_str = mode_to_string(mode);
+    config.insert_json("mode", "\"" + mode_str + "\"");
+    
+    // 设置连接端点
+    if (!connections.empty()) {
+        std::string connect_str = "[";
+        for (size_t i = 0; i < connections.size(); ++i) {
+            if (i > 0) {
+                connect_str += ",";
+            }
+            connect_str += "\"" + connections[i] + "\"";
+        }
+        connect_str += "]";
+        config.insert_json("connect/endpoints", connect_str);
+    }
+    
+    return config;
 }
 
 } // namespace zenoh_rpc

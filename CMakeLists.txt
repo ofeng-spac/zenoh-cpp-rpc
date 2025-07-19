@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 添加编译定义以启用不稳定特性
-#add_compile_definitions(Z_FEATURE_UNSTABLE_API)
+# add_compile_definitions(Z_FEATURE_UNSTABLE_API)
+# target_compile_definitions(zenoh_rpc PRIVATE Z_FEATURE_UNSTABLE_API)
 
 # Find required packages
 find_package(PkgConfig REQUIRED)
@@ -98,14 +99,59 @@ else()
     target_compile_definitions(zenoh_rpc INTERFACE ZENOH_RPC_HEADER_ONLY)
 endif()
 
-# Create examples
+# Set output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# Build examples only if zenohcxx is available
 if(NOT HEADER_ONLY_BUILD)
-    file(GLOB EXAMPLE_SOURCES "examples/*.cpp")
-    foreach(EXAMPLE_SOURCE ${EXAMPLE_SOURCES})
-        get_filename_component(EXAMPLE_NAME ${EXAMPLE_SOURCE} NAME_WE)
-        add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCE})
-        target_link_libraries(${EXAMPLE_NAME} zenoh_rpc)
-    endforeach()
+    # Example executables (Query/Queryable communication style)
+    add_executable(client_example examples/client_example.cpp)
+    target_link_libraries(client_example zenohcxx::zenohc nlohmann_json::nlohmann_json)
+    
+    add_executable(server_example examples/server_example.cpp)
+    target_link_libraries(server_example zenohcxx::zenohc nlohmann_json::nlohmann_json)
+    
+    add_executable(session_management_example examples/session_management_example.cpp)
+    target_link_libraries(session_management_example zenoh_rpc)
+    
+    # Simple tool executables
+    add_executable(simple_client tools/simple_client.cpp)
+    target_link_libraries(simple_client zenoh_rpc)
+    
+    add_executable(simple_server tools/simple_server.cpp)
+    target_link_libraries(simple_server zenoh_rpc)
+    
+    # Simple Query/Queryable communication tools (like tmp project)
+    add_executable(simple_query_client tools/simple_query_client.cpp)
+    target_link_libraries(simple_query_client zenohcxx::zenohc)
+    
+    add_executable(simple_query_server tools/simple_query_server.cpp)
+    target_link_libraries(simple_query_server zenohcxx::zenohc)
+    
+    # Test executables
+    add_executable(test_client_improvements tests/test_client_improvements.cpp)
+    target_link_libraries(test_client_improvements zenoh_rpc)
+    
+    add_executable(test_client_msgpack tests/test_client_msgpack.cpp)
+    target_link_libraries(test_client_msgpack zenoh_rpc)
+    
+    add_executable(test_error_handling tests/test_error_handling.cpp)
+    target_link_libraries(test_error_handling zenoh_rpc)
+    
+    add_executable(test_jsonrpc tests/test_jsonrpc.cpp)
+    target_link_libraries(test_jsonrpc zenoh_rpc)
+    
+    add_executable(test_msgpack_support tests/test_msgpack_support.cpp)
+    target_link_libraries(test_msgpack_support zenoh_rpc)
+    
+    add_executable(test_parameter_handling tests/test_parameter_handling.cpp)
+    target_link_libraries(test_parameter_handling zenoh_rpc)
+    
+    add_executable(test_query_communication tests/test_query_communication.cpp)
+    target_link_libraries(test_query_communication zenohcxx::zenohc)
+    
+    add_executable(test_zenoh tests/test_zenoh.cpp)
+    target_link_libraries(test_zenoh zenohcxx::zenohc)
 else()
     message(STATUS "Skipping examples in header-only mode. Install zenohcxx to build examples.")
 endif()

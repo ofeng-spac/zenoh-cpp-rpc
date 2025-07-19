@@ -131,16 +131,8 @@ public:
     zenoh::Queryable<void> declare_queryable(const std::string& key_expr, 
                                               std::function<void(const zenoh::Query&)> callback);
     
-    /**
-     * @brief 声明查询器
-     * @param key_expr 键表达式，定义查询的目标
-     * @param timeout_ms 查询超时时间（毫秒）
-     * @return 查询器对象
-     * 
-     * 创建一个查询器，用于向指定键表达式发送查询请求。
-     * 主要用于 RPC 客户端向服务器发送方法调用请求。
-     */
-    zenoh::Querier declare_querier(const std::string& key_expr, uint64_t timeout_ms = 0);
+    // Querier API 已被移除，因为它是不稳定的扩展API
+    // 请使用 Session::get() 方法进行查询操作
     
     /**
      * @brief 声明发布者

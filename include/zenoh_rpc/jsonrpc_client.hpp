@@ -106,7 +106,7 @@ private:
     std::unique_ptr<Session> owned_session_;    ///< 拥有的会话实例
     std::string encoding_;                      ///< 编码格式（"json" 或 "msgpack"）
     std::chrono::milliseconds default_timeout_; ///< 默认超时时间
-    zenoh::Querier querier_;                    ///< Zenoh 查询器
+    // 移除 querier_ 成员变量，改用 Session::get() 方法
 };
 
 } // namespace zenoh_rpc

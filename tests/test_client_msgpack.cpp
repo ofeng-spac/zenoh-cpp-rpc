@@ -1,7 +1,7 @@
 #include <iostream>
 #include <iomanip>
-#include "include/zenoh_rpc/jsonrpc_proto.hpp"
-#include "include/zenoh_rpc/errors.hpp"
+#include "zenoh_rpc/jsonrpc_proto.hpp"
+#include "zenoh_rpc/errors.hpp"
 
 using namespace zenoh_rpc;
 using json = nlohmann::json;

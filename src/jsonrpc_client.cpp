@@ -21,8 +21,8 @@ Client::Client(const std::string& key_expr, const std::string& encoding, std::ch
       owns_session_(true),
       owned_session_(std::make_unique<Session>()),
       encoding_(encoding),
-      default_timeout_(timeout),
-      querier_(owned_session_->declare_querier(key_expr, default_timeout_.count())) {
+      default_timeout_(timeout) {
+    // 移除 querier_ 初始化，改用 Session::get() 方法
     session_ = owned_session_.get();
     
     // 验证编码格式
@@ -49,8 +49,8 @@ Client::Client(const std::string& key_expr, SessionMode mode, const std::vector<
       owns_session_(true),
       owned_session_(std::make_unique<Session>(mode, connections)),
       encoding_(encoding),
-      default_timeout_(timeout),
-      querier_(owned_session_->declare_querier(key_expr, default_timeout_.count())) {
+      default_timeout_(timeout) {
+    // 移除 querier_ 初始化，改用 Session::get() 方法
     session_ = owned_session_.get();
     
     // 验证编码格式
@@ -74,8 +74,8 @@ Client::Client(const std::string& key_expr, Session& session, const std::string&
       session_(&session), 
       owns_session_(false),
       encoding_(encoding),
-      default_timeout_(timeout),
-      querier_(session.declare_querier(key_expr, default_timeout_.count())) {
+      default_timeout_(timeout) {
+    // 移除 querier_ 初始化，改用 Session::get() 方法
     
     // 验证编码格式
     if (encoding_ != "json" && encoding_ != "msgpack") {
@@ -127,11 +127,16 @@ json Client::call(const std::string& method, const json& params, std::optional<s
         throw std::invalid_argument("Unsupported encoding: " + encoding_);
     }
     
-    // 发送 Zenoh 查询
-    zenoh::Querier::GetOptions options;
+    // 使用 Session::get() 方法进行查询
+    zenoh::Session::GetOptions options;
     options.payload = request_str;
+    if (timeout) {
+        options.timeout_ms = timeout->count();
+    } else {
+        options.timeout_ms = default_timeout_.count();
+    }
     
-    auto replies = querier_.get("", zenoh::channels::FifoChannel(16), std::move(options));
+    auto replies = session_->get_session().get(zenoh::KeyExpr(key_expr_), "", zenoh::channels::FifoChannel(16), std::move(options));
     
     // 等待回复
     auto reply_result = replies.recv();

@@ -8,7 +8,7 @@ namespace zenoh_rpc {
  * 使用默认配置创建 Zenoh 会话。
  * 会话将使用 Zenoh 的默认网络配置进行初始化。
  */
-Session::Session() : session_(zenoh::open(zenoh::Config())), 
+Session::Session() : session_(zenoh::Session::open(zenoh::Config::create_default())), 
                      mode_(SessionMode::PEER), 
                      active_(true) {
     // 使用默认配置创建 Zenoh 会话，默认为 PEER 模式
@@ -21,14 +21,14 @@ Session::Session() : session_(zenoh::open(zenoh::Config())),
  * 使用指定的配置创建 Zenoh 会话。
  * 允许用户自定义网络参数、路由器地址等配置。
  */
-Session::Session(const zenoh::Config& config) : session_(zenoh::open(config)), 
+Session::Session(const zenoh::Config& config) : session_(zenoh::Session::open(std::move(const_cast<zenoh::Config&>(config)))), 
                                                 mode_(SessionMode::PEER), 
                                                 active_(true) {
     // 使用指定配置创建 Zenoh 会话，默认为 PEER 模式
 }
 
 Session::Session(SessionMode mode, const std::vector<std::string>& connections) 
-    : session_(zenoh::open(create_config(mode, connections))), 
+    : session_(zenoh::Session::open(create_config(mode, connections))), 
       mode_(mode), 
       connections_(connections), 
       active_(true) {
@@ -83,7 +83,11 @@ zenoh::Session& Session::get_session() {
  */
 zenoh::Queryable<void> Session::declare_queryable(const std::string& key_expr, 
                                                   std::function<void(const zenoh::Query&)> callback) {
-    return session_.declare_queryable(key_expr, callback);
+    return session_.declare_queryable(key_expr,
+                                     [callback](const zenoh::Query& query) {
+                                         callback(query);
+                                     },
+                                     zenoh::closures::none);
 }
 
 /**
@@ -94,11 +98,7 @@ zenoh::Queryable<void> Session::declare_queryable(const std::string& key_expr,
  * 创建一个查询器，用于向指定键表达式发送查询请求。
  * 主要用于 RPC 客户端向服务器发送方法调用请求。
  */
-zenoh::Querier Session::declare_querier(const std::string& key_expr, uint64_t timeout_ms) {
-    zenoh::Session::QuerierOptions options;
-    options.timeout_ms = timeout_ms;
-    return session_.declare_querier(key_expr, std::move(options));
-}
+// declare_querier 方法已被移除，因为 Querier 是不稳定的扩展API
 
 zenoh::Publisher Session::declare_publisher(const std::string& key_expr) {
     return session_.declare_publisher(key_expr);
@@ -106,7 +106,11 @@ zenoh::Publisher Session::declare_publisher(const std::string& key_expr) {
 
 zenoh::Subscriber<void> Session::declare_subscriber(const std::string& key_expr,
                                                     std::function<void(const zenoh::Sample&)> callback) {
-    return session_.declare_subscriber(key_expr, std::move(callback));
+    return session_.declare_subscriber(key_expr, 
+                                     [callback](const zenoh::Sample& sample) {
+                                         callback(sample);
+                                     },
+                                     zenoh::closures::none);
 }
 
 std::string Session::mode_to_string(SessionMode mode) {
@@ -123,11 +127,17 @@ std::string Session::mode_to_string(SessionMode mode) {
 }
 
 zenoh::Config Session::create_config(SessionMode mode, const std::vector<std::string>& connections) {
-    zenoh::Config config;
+    zenoh::Config config = zenoh::Config::create_default();
     
     // 设置会话模式
     std::string mode_str = mode_to_string(mode);
-    config.insert_json("mode", "\"" + mode_str + "\"");
+    config.insert_json5("mode", "\"" + mode_str + "\"");
+    
+    // 为PEER模式启用基本配置
+    if (mode == SessionMode::PEER && connections.empty()) {
+        // 启用multicast scouting
+        config.insert_json5("scouting/multicast/enabled", "true");
+    }
     
     // 设置连接端点
     if (!connections.empty()) {
@@ -139,7 +149,7 @@ zenoh::Config Session::create_config(SessionMode mode, const std::vector<std::st
             connect_str += "\"" + connections[i] + "\"";
         }
         connect_str += "]";
-        config.insert_json("connect/endpoints", connect_str);
+        config.insert_json5("connect/endpoints", connect_str);
     }
     
     return config;

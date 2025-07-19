@@ -1,6 +1,6 @@
 #include <iostream>
 #include <string>
-#include "include/zenoh_rpc/jsonrpc_proto.hpp"
+#include "zenoh_rpc/jsonrpc_proto.hpp"
 
 using json = nlohmann::json;
 using namespace zenoh_rpc;
